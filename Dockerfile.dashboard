@@ -1,0 +1,39 @@
+# Build stage
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Final runtime stage
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/root/.local/bin:$PATH \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    STREAMLIT_SERVER_HEADLESS=true
+
+COPY --from=builder /root/.local /root/.local
+
+# Copy application files
+COPY dashboard/ ./dashboard/
+COPY scripts/ ./scripts/
+COPY app/ ./app/
+COPY pyproject.toml .
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=20s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')" || exit 1
+
+CMD ["streamlit", "run", "dashboard/app.py"]

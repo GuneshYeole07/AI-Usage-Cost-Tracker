@@ -1,0 +1,40 @@
+[project]
+name = "ai-usage-cost-tracker"
+version = "1.0.0"
+description = "Portfolio project tracking LLM API usage, feature cost attribution, budgets, and anomaly detection."
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    "alembic",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "B008", # do not perform function calls in argument defaults (FastAPI Depends)
+    "E501", # line too long (handled by formatter and multi-line strings)
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    ".",
+]

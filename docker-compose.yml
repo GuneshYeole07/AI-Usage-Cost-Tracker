@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: ai_tracker_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=AI Usage & Cost Tracker
+      - DATABASE_URL=sqlite:////data/ai_tracker.db
+      - LOG_LEVEL=INFO
+      - ANOMALY_MULTIPLIER=2.5
+      - BUDGET_WARNING_THRESHOLD=0.80
+    volumes:
+      - tracker_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: ai_tracker_dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_API_URL=http://backend:8000
+      - DATABASE_URL=sqlite:////data/ai_tracker.db
+    volumes:
+      - tracker_data:/data
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  tracker_data:
+    driver: local
