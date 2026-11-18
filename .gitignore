@@ -71,3 +71,10 @@ venv.bak/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Local reports
+report*.md
+
+# Local agent/editor skill installs
+.claude/
+.agents/

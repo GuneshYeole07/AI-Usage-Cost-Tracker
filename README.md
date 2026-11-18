@@ -1,217 +1,200 @@
-# ⚡ AI Usage & Cost Tracker
+# 🔍 LLM Token Auditor
 
-[![CI Pipeline](https://github.com/your-username/ai-usage-cost-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/ai-usage-cost-tracker/actions)
+**Find the tokens your AI coding agent wasted, see why, and fix it.**
+
+![LLM Token Auditor overview](docs/overview.png)
+
+[![CI Pipeline](https://github.com/GuneshYeole07/AI-Usage-Cost-Tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/GuneshYeole07/AI-Usage-Cost-Tracker/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-A full-stack, production-grade LLM governance and cost management system built with **FastAPI**, **SQLAlchemy**, **Streamlit**, and **Docker**.
+Provider dashboards tell you **how much** you spent on AI. This tool tells you **how much of it was avoidable, why, and what to change.**
 
----
+It reads usage metadata from AI coding agents (Claude Code session logs today), runs six explainable waste rules over every session, and shows the result as a dashboard, a weekly report, and a live in-editor warning.
 
-## 🎯 Problem Statement: Why This Project?
-
-Provider-native dashboards (OpenAI, Anthropic, Google Cloud Vertex AI) suffer from major governance limitations when operating in real-world production environments:
-
-| Limitation in Provider Dashboards | Solution in AI Usage & Cost Tracker |
-| :--- | :--- |
-| **No Feature Attribution**: Bills are grouped by API key or organization, leaving teams blind to which product feature (`chatbot`, `summarizer`, `rag-search`, `evals`) incurred the cost. | **Tag-Based Cost Attribution**: Every request is tagged by product feature/use-case, providing fine-grained ROI and unit economics. |
-| **No Proactive Budget Enforcement**: Alerts are typically delayed and organization-wide, offering no per-feature limits. | **Multi-Tier Budget Governance**: Enforces monthly spending limits per tag with automated status evaluation: `OK` (<80%), `WARNING` (80–100%), and `EXCEEDED` (>100%). |
-| **No Anomaly Spike Detection**: Runaway loops or prompt injection exploits go unnoticed until the end-of-month bill arrives. | **Rule-Based Statistical Anomaly Detection**: Compares current daily spend against a trailing 7-day baseline to instantly detect and flag >2.5x surges without black-box ML. |
-| **Multi-Provider Silos**: Fragmented dashboards across disparate vendors without unified unit economics. | **Unified Multi-Provider Ingestion**: Aggregates token consumption, pricing, and latency across **8 major AI providers** (OpenAI, Anthropic, Google Gemini, DeepSeek, Mistral AI, Groq, Cohere, and Together AI). |
+> **Privacy first.** It runs on your machine and stores only token counts, model names, tool names, error flags and hashed file paths. Prompt and response text is discarded while reading and never stored.
 
 ---
 
-## 🏗️ Architecture & System Design
+## Screenshots
 
-```
-                     +-----------------------------------+
-                     |        Streamlit Dashboard        |
-                     |  - Spend Overview & Charts        |
-                     |  - Feature Tag Attribution        |
-                     |  - Monthly Budget Health Gauges   |
-                     |  - Anomaly Alert Feed             |
-                     +-----------------+-----------------+
-                                       |
-                                HTTP REST / JSON
-                                       |
-                     +-----------------v-----------------+
-                     |         FastAPI Backend           |
-                     |  - Request Validation (Pydantic)  |
-                     |  - Structured Python Logging      |
-                     |  - Statistical Anomaly Engine     |
-                     |  - Database Migrations (Alembic)  |
-                     +-----------------+-----------------+
-                                       |
-                              SQLAlchemy ORM
-                                       |
-                     +-----------------v-----------------+
-                     |         SQLite Database           |
-                     |   `usage_logs`  |   `budgets`     |
-                     +-----------------------------------+
-```
+| Sessions | Team |
+|---|---|
+| ![Session view](docs/sessions.png) | ![Team view](docs/team.png) |
+| **Forecast** | **Check rules** |
+| ![Forecast](docs/forecast.png) | ![Rule review](docs/check_rules.png) |
 
----
+## Why this exists
 
-## 🚀 Key Features
+Small tasks can burn huge token counts without anyone noticing:
 
-### 1. API Usage Logging (`/log` & `/usage`)
-- Records provider, model name, input/output tokens, cost in USD, and feature tag.
-- Multidimensional querying with filtering by provider, tag, date range, and pagination.
+- Every message in a long chat **resends the whole history**. Message 60 costs far more than message 1.
+- Agents **retry failing commands** in a loop.
+- The same file gets **read again and again**.
+- Fifteen connected tools make **every single message heavier**.
+- The top model gets used to **rename a variable**.
 
-### 2. Feature-Level Cost Attribution (`/costs/by-tag`)
-- Computes aggregate spend, total request count, token breakdown, and average cost-per-request grouped by tag.
+The result: teams hit usage limits early and pay for bigger plans. The bill shows the total, never the cause.
 
-### 3. Monthly Budget Limits & Health Monitoring (`/budgets` & `/budgets/status`)
-- Set and update monthly budgets per feature tag.
-- Real-time spend tracking evaluated against calendar month bounds with automated health classification (`ok`, `warning`, `exceeded`).
+## What it does
 
-### 4. Explainable Statistical Anomaly Detection (`/alerts`)
-- Computes trailing 7-day daily average baseline:
-  $$\text{Baseline} = \frac{\sum_{d=1}^{7} \text{Cost}_{d}}{7}$$
-- Compares today's spend against the baseline. Flags an anomaly when:
-  $$\text{Cost}_{\text{today}} > 2.5 \times \text{Baseline} \quad (\text{with } \text{Cost}_{\text{today}} \ge \$0.05)$$
+| Feature | What you get |
+|---|---|
+| **Waste rules** | Six deterministic rules. Each finding shows its evidence, the avoidable tokens and dollars, and a concrete fix. |
+| **Session explorer** | Context growth message by message, with failed tool calls marked. |
+| **Team view** | Usage and avoidable share per developer, with each person's biggest issue. |
+| **Forecast** | Will the team hit its monthly token budget, and would the fixes prevent it? |
+| **Rule validation** | Mark findings as "real waste" or "false alarm" to measure each rule's precision. |
+| **Token Guard hook** | A live warning inside Claude Code when a chat gets too long or the agent is looping. |
+| **Weekly report** | A Markdown summary you can schedule and send. |
 
-### 5. Interactive Streamlit Dashboard
-- **Executive Overview**: Total spend, token totals, request counts, provider share donut chart, daily spend stack chart.
-- **Cost by Tag**: Comparative bar charts and token distribution visualizations.
-- **Budgets & Governance**: Color-coded progress indicators and real-time budget creation form.
-- **Anomaly Alerts**: Visual surge alert cards with root-cause metrics.
-- **Live Simulator**: Test and record custom requests interactively.
-- **Idempotent Data Seeder**: One-click demo data population that safely cleans and reseeds representative multi-day traffic.
+### The six rules
+
+| Rule | Flags when | Fix it suggests |
+|---|---|---|
+| Chat ran too long | Context passes 100k tokens | Start fresh or `/compact` with a short summary |
+| Agent stuck in a loop | 4+ failing tool calls in a row | Stop after 2 failures and give a specific hint |
+| Same files read again | A file is read more than twice | Point the agent at exact files and lines |
+| Heavy startup context | First message already over 65k tokens (a normal Claude Code start is ~50k) | Disable unused MCP servers, trim CLAUDE.md |
+| Big model for a small task | Top-tier model on a short, low-output session | Use a smaller model for quick edits |
+| Prompt cache not working | Under 70% cache hits on a long session | Avoid long pauses mid-session |
+
+All thresholds are in `app/config.py` and visible at `GET /rules`. Nothing is a black box.
+
+**Calibrated on real data.** The first version assumed a session starts at ~12k tokens. Real Claude Code sessions start at 49k–83k (built-in instructions and tools), so every real session was wrongly flagged. The thresholds and the long-chat baseline were recalibrated on real sessions.
+
+**How "avoidable" is calculated.** Estimates are conservative on purpose. For long chats the tool asks: *what if you had started fresh when the context crossed the threshold?* A fresh chat regrows too, so only the history a reset would have dropped is counted, not the whole context. Rules never count the same tokens twice.
 
 ---
 
-## 🛠️ Tech Stack
-
-- **Backend**: Python 3.10+, FastAPI, Pydantic v2, Pydantic-Settings, Uvicorn
-- **Database & ORM**: SQLite (file-based), SQLAlchemy 2.0, Alembic
-- **Frontend**: Streamlit, Plotly, Pandas
-- **Testing & Quality**: Pytest, Pytest-Asyncio, HTTPX, Ruff
-- **DevOps**: Docker, Docker Compose, GitHub Actions CI
-
----
-
-## 📦 Quick Start (Local Installation)
-
-### 1. Clone & Set Up Virtual Environment
+## Quick start
 
 ```bash
-git clone https://github.com/your-username/ai-usage-cost-tracker.git
-cd ai-usage-cost-tracker
+git clone https://github.com/GuneshYeole07/AI-Usage-Cost-Tracker.git
+cd AI-Usage-Cost-Tracker
 
 python -m venv .venv
-# On Linux/macOS:
-source .venv/bin/activate
-# On Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-```
+.venv\Scripts\Activate.ps1          # Windows PowerShell
+# source .venv/bin/activate         # Linux / macOS
 
-### 2. Install Dependencies
-
-```bash
-pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment Variables
+Terminal 1, backend:
 
 ```bash
-# Copy example environment configuration
-cp .env.example .env
+uvicorn app.main:app --port 8000
 ```
 
-### 4. Run Database Migrations & Seed Demo Data
+Terminal 2, dashboard:
 
-```bash
-# Run schema migrations via Alembic
-alembic upgrade head
-
-# Seed realistic 14-day sample traffic (idempotent)
-python scripts/seed.py
-```
-
-### 5. Start Backend & Dashboard
-
-In Terminal 1 (Backend):
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-*API docs available at: `http://localhost:8000/docs`*
-
-In Terminal 2 (Streamlit Dashboard):
 ```bash
 streamlit run dashboard/app.py
 ```
-*Dashboard available at: `http://localhost:8501`*
 
----
+Open <http://localhost:8501>, go to **Import data**, and either load the simulated demo team or upload your own logs. API docs are at <http://localhost:8000/docs>.
 
-## 🐳 Running with Docker & Docker Compose
-
-Run both services with health checks and persistent volume storage in a single command:
+### Use your real Claude Code data
 
 ```bash
-# Build and launch services
+python scripts/import_claude_code.py --user yourname
+```
+
+This reads `~/.claude/projects` (Windows: `C:\Users\<you>\.claude\projects`). Re-running it is safe; sessions are updated, never duplicated.
+
+### Load the demo data from the terminal
+
+```bash
+python scripts/seed.py
+```
+
+### Docker
+
+```bash
 docker compose up --build
-
-# In a separate terminal or once launched, seed demo data:
-docker compose exec backend python -c "from scripts.seed import seed_demo_data; seed_demo_data()"
-```
-
-- **Dashboard UI**: [http://localhost:8501](http://localhost:8501)
-- **FastAPI Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Backend Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
-
-To stop the containers:
-```bash
-docker compose down
 ```
 
 ---
 
-## 🧪 Testing & Linting
+## Automation
 
-Run the test suite with Pytest:
+**Token Guard (live warning in Claude Code).** Add this to `~/.claude/settings.json` with the full path to the file:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {"hooks": [{"type": "command", "command": "python C:/full/path/to/hooks/token_guard.py"}]}
+    ]
+  }
+}
+```
+
+It warns when a chat passes 100k tokens (and again every 40k after that), and when the last 4 tool calls all failed. It uses only the Python standard library and sends nothing anywhere. Tune it with the `TOKEN_GUARD_WARN`, `TOKEN_GUARD_STEP` and `TOKEN_GUARD_LOOP` environment variables.
+
+**Daily auto-import (Windows Task Scheduler):**
+
+```powershell
+schtasks /Create /SC DAILY /ST 19:00 /TN "TokenAuditorImport" /TR "C:\path\to\.venv\Scripts\python.exe C:\path\to\scripts\import_claude_code.py --user yourname"
+```
+
+**Weekly report:**
+
+```bash
+python scripts/weekly_report.py --days 7 --out report.md
+```
+
+**CI:** GitHub Actions runs `ruff` and `pytest` on Python 3.10, 3.11 and 3.12 for every push.
+
+---
+
+## API
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Service and database check |
+| `GET` | `/rules` | The rules and their thresholds |
+| `POST` | `/import/claude-code` | Upload `.jsonl` session logs |
+| `POST` | `/sessions` | Generic ingestion for other agents or API traffic |
+| `GET` | `/overview` | Totals, avoidable share, breakdown by cause |
+| `GET` | `/findings` | Every finding, filterable by `rule` and `user` |
+| `GET` | `/sessions`, `/sessions/{id}` | Session list and turn-by-turn detail |
+| `GET` | `/users`, `/daily`, `/forecast` | Team, trend and budget views |
+| `GET` `POST` | `/validation`, `/labels` | Review findings and measure rule precision |
+| `POST` `DELETE` | `/demo/seed`, `/demo` | Load or remove the simulated data |
+
+Most `GET` endpoints accept `source=all|real|simulated`.
+
+## Project layout
+
+```
+app/          FastAPI backend: parser, rules, analytics, pricing, simulator
+dashboard/    Streamlit dashboard
+hooks/        Token Guard hook for Claude Code
+scripts/      import_claude_code.py, seed.py, weekly_report.py
+alembic/      database migrations
+tests/        31 tests: parser, rules, pricing, API, hook
+```
+
+## Testing
+
 ```bash
 pytest -v
-```
-
-Run code quality and style checks with Ruff:
-```bash
 ruff check .
 ```
 
 ---
 
-## 📖 API Documentation & Reference
+## Honest limitations
 
-| Method | Endpoint | Description | Sample Query / Body |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Service health & DB connectivity check | — |
-| `POST` | `/log` | Log an individual LLM API call | `{"provider":"openai","model_name":"gpt-4o","tokens_in":1200,"tokens_out":350,"cost":0.00725,"tag":"chatbot"}` |
-| `GET` | `/usage` | Query historical logs with filters | `?provider=openai&tag=chatbot&limit=50` |
-| `GET` | `/costs/by-tag` | Aggregated cost and token breakdown by tag | `?start_date=2026-08-01T00:00:00Z` |
-| `POST` | `/budgets` | Set or update monthly budget for a tag | `{"tag":"chatbot","monthly_limit":75.0}` |
-| `GET` | `/budgets/status` | Current month spend vs budget limits | — |
-| `GET` | `/alerts` | Active statistical cost anomalies (>2.5x) | — |
+- **The demo data is simulated.** Six fictional developers, each given one bad habit on purpose. On that data the tool flags about a quarter of tokens as avoidable. That number describes the simulator, not any real company.
+- **Rules are heuristics.** A long chat is sometimes necessary. Use the **Validate rules** page to measure precision on your own sessions before quoting any savings figure.
+- **Costs are estimates** from the price table in `app/pricing.py`. Update it to current rates.
+- **Coverage.** Claude Code logs and anything sent to `POST /sessions`. The ChatGPT and Claude web apps do not expose per-message usage, so they cannot be audited.
+- **Token Guard** follows Claude Code's documented hook interface and is tested against sample transcripts. Check it once on your own install.
 
----
+## Roadmap
 
-## 💡 Production-Readiness Highlights
-
-- **Alembic Schema Migrations**: Schema evolution is strictly versioned in `alembic/versions/`.
-- **Defensive Input Validation**: Pydantic models validate non-negative numbers, positive budget limits, normalized strings, and valid date bounds.
-- **Idempotent Data Seeding**: `scripts/seed.py` cleanly flushes and seeds multi-day traffic with pre-configured OK, Warning, Exceeded budgets, and an anomaly spike for live demoing.
-- **Resilient Containerization**: Multi-stage Docker builds with automated healthchecks on both services.
-- **Automated CI**: GitHub Actions workflow tests on Python 3.10, 3.11, and 3.12 with zero linting warnings.
-
----
-
-## 🔮 Roadmap / Future Enhancements
-
-- **PostgreSQL Adapter**: Connection pooling via asyncpg for high-throughput concurrency.
-- **Python Middleware Wrapper SDK**: `@track_cost(tag="...")` decorator for automatic interception of OpenAI/Gemini/Anthropic client calls.
-- **Webhook Integrations**: Automated Slack / PagerDuty / Email notifications when budgets reach warning or exceeded thresholds.
-- **Token Streaming Interceptor**: Chunk-by-chunk token counter for server-sent event (SSE) streaming responses.
+- Before/after measurement: apply the fixes for two weeks and compare
+- Importers for Cursor and other agents
+- A small classifier that predicts task size from the first few turns and suggests a model
+- Slack/email delivery for the weekly report and budget alerts
